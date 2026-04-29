@@ -4,708 +4,1522 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🚚 Delivery Route Optimizer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface2: #1c1c28;
+      --border: #2a2a3a;
+      --accent: #ff6b35;
+      --accent2: #ffd166;
+      --blue: #4ecdc4;
+      --green: #06d6a0;
+      --red: #ef476f;
+      --purple: #9b5de5;
+      --text: #f0f0f5;
+      --muted: #7a7a9a;
+      --font: 'Syne', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-    }
-    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-    .header { text-align: center; color: white; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-    .controls {
-      background: rgba(255,255,255,0.95);
-      padding: 25px;
-      border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-      margin-bottom: 25px;
-    }
-    .btn {
-      padding: 12px 24px; border: none; border-radius: 12px;
-      font-weight: 600; cursor: pointer; transition: all 0.3s;
-      margin: 5px; font-size: 15px;
-    }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
-    .btn-primary { background: #4CAF50; color: white; }
-    .btn-primary:hover:not(:disabled) { background: #45a049; transform: translateY(-2px); }
-    .btn-secondary { background: #2196F3; color: white; }
-    .btn-secondary:hover:not(:disabled) { background: #1976D2; transform: translateY(-2px); }
-    .btn-outline { background: transparent; color: #667eea; border: 2px solid #667eea; }
-    .btn-outline:hover { background: #667eea; color: white; transform: translateY(-2px); }
-    .btn-danger { background: #f44336; color: white; }
-    .btn-danger:hover { background: #d32f2f; transform: translateY(-2px); }
-    .btn-optimize {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white; font-size: 16px; padding: 14px 32px;
-      box-shadow: 0 4px 15px rgba(102,126,234,0.4);
-    }
-    .btn-optimize:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.5); }
-
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; }
-    .stat-card { background: rgba(255,255,255,0.7); padding: 15px; border-radius: 15px; text-align: center; }
-
-    .main-content { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
-    .map-container { background: rgba(255,255,255,0.95); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-    #map { height: 580px; width: 100%; }
-    .routes-panel { background: rgba(255,255,255,0.95); border-radius: 20px; padding: 25px; max-height: 580px; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-    .route-card { color: white; padding: 18px; border-radius: 15px; margin-bottom: 12px; }
-
-    /* Modal */
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.55); display: flex;
-      align-items: center; justify-content: center;
-      z-index: 9999; backdrop-filter: blur(4px);
-    }
-    .modal {
-      background: white; border-radius: 20px; padding: 30px;
-      width: 500px; max-width: 95vw;
-      box-shadow: 0 30px 60px rgba(0,0,0,0.3);
-      animation: popIn 0.2s ease;
-    }
-    @keyframes popIn {
-      from { transform: scale(0.9); opacity: 0; }
-      to   { transform: scale(1);   opacity: 1; }
-    }
-    .modal h3 { font-size: 1.3rem; margin-bottom: 20px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
-
-    /* Location picker section */
-    .loc-section {
-      border-radius: 14px; padding: 16px; margin-bottom: 14px;
-      border-left: 4px solid #667eea; background: #f8f9ff;
-    }
-    .loc-section.customer { border-left-color: #4CAF50; background: #f6faf6; }
-    .loc-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #666; margin-bottom: 12px; }
-
-    /* Resolved chip */
-    .resolved-chip {
-      display: flex; align-items: center; justify-content: space-between;
-      background: #e8f5e9; border: 1.5px solid #4CAF50;
-      border-radius: 10px; padding: 10px 14px;
-      font-size: 14px; color: #2e7d32; font-weight: 600;
-    }
-    .resolved-chip button {
-      background: none; border: none; cursor: pointer;
-      color: #f44336; font-size: 16px; padding: 0 0 0 10px;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    /* Search box */
-    .search-wrap { position: relative; }
-    .search-input {
-      width: 100%; padding: 10px 14px;
-      border: 1.5px solid #ddd; border-radius: 10px;
-      font-size: 14px; outline: none; transition: border-color 0.2s;
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      flex-shrink: 0;
     }
-    .search-input:focus { border-color: #667eea; }
-    .dropdown {
-      position: absolute; top: calc(100% + 2px); left: 0; right: 0;
-      background: white; border: 1.5px solid #667eea;
-      border-radius: 10px; z-index: 10000;
-      max-height: 230px; overflow-y: auto;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.13);
-    }
-    .drop-item {
-      padding: 10px 14px; cursor: pointer;
-      border-bottom: 1px solid #f0f0f0; transition: background 0.12s;
-    }
-    .drop-item:last-child { border-bottom: none; }
-    .drop-item:hover { background: #f0f4ff; }
-    .drop-item .d-name { font-weight: 600; font-size: 13px; color: #333; }
-    .drop-item .d-sub  { font-size: 11px; color: #999; margin-top: 2px; }
-    .drop-item.is-preset .d-name::before { content: '⚡ '; }
-    .drop-searching { padding: 12px 14px; color: #999; font-size: 13px; font-style: italic; }
 
-    /* Order list */
-    .order-list { margin-top: 15px; max-height: 160px; overflow-y: auto; }
-    .order-item {
-      display: flex; align-items: center; justify-content: space-between;
-      background: #f5f5f5; border-radius: 10px;
-      padding: 9px 13px; margin-bottom: 7px; font-size: 13px;
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
     }
-    .order-badge {
-      font-size: 10px; font-weight: 700; padding: 2px 8px;
-      border-radius: 20px; margin-left: 6px; color: white;
-    }
-    .delete-btn { background: none; border: none; cursor: pointer; font-size: 16px; color: #f44336; padding: 2px 6px; border-radius: 6px; }
-    .delete-btn:hover { background: #fde8e8; }
 
-    /* Stats bar */
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
     .stats-bar {
-      background: linear-gradient(90deg, #667eea, #764ba2);
-      color: white; border-radius: 12px; padding: 12px 20px;
-      display: flex; gap: 24px; align-items: center;
-      font-size: 14px; font-weight: 600; margin-top: 12px; flex-wrap: wrap;
+      display: flex;
+      gap: 20px;
     }
 
-    /* Case legend */
-    .case-legend {
-      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
-    }
-    .case-pill {
-      padding: 4px 12px; border-radius: 20px; font-size: 12px;
-      font-weight: 700; color: white;
+    .stat {
+      text-align: center;
     }
 
-    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
-    .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-    .form-group label { font-size: 12px; color: #666; font-weight: 600; }
-    .form-group input { padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
-    .form-group input:focus { border-color: #2196F3; }
+    .stat-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
 
-    @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+    .stat-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .conn-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .conn-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background 0.3s;
+    }
+
+    .conn-dot.connected { background: var(--green); }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 340px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-top {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .btn-optimize {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-optimize:hover { background: #ff8556; transform: translateY(-1px); }
+    .btn-optimize:disabled { background: var(--border); color: var(--muted); transform: none; cursor: not-allowed; }
+
+    .btn-add-order {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: transparent;
+      color: var(--accent2);
+      border: 1px solid var(--accent2);
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-add-order:hover { background: rgba(255,209,102,0.1); }
+
+    .sidebar-section {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .sidebar-section::-webkit-scrollbar { width: 4px; }
+    .sidebar-section::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+
+    /* ── ORDER CARDS ── */
+    .order-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .order-card:hover { border-color: var(--accent); }
+    .order-card.selected { border-color: var(--accent); background: rgba(255,107,53,0.08); }
+
+    .order-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .order-id {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--muted);
+    }
+
+    .order-delete {
+      width: 20px; height: 20px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .order-delete:hover { background: rgba(239,71,111,0.2); color: var(--red); }
+
+    .order-rest {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .order-items {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-family: var(--mono);
+    }
+
+    .order-customer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--blue);
+    }
+
+    /* ── ROUTE CARDS ── */
+    .route-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .route-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .route-type-badge {
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-one_to_one    { background: rgba(78,205,196,0.15); color: var(--blue); border: 1px solid rgba(78,205,196,0.3); }
+    .badge-one_to_many   { background: rgba(6,214,160,0.15);  color: var(--green); border: 1px solid rgba(6,214,160,0.3); }
+    .badge-many_to_one   { background: rgba(155,93,229,0.15); color: var(--purple); border: 1px solid rgba(155,93,229,0.3); }
+    .badge-many_to_many  { background: rgba(255,209,102,0.15); color: var(--accent2); border: 1px solid rgba(255,209,102,0.3); }
+
+    .route-rider {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .route-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .route-meta span { display: flex; align-items: center; gap: 4px; }
+
+    .route-rest {
+      font-size: 12px;
+      color: var(--accent);
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    .route-orders {
+      margin-top: 8px;
+    }
+
+    .route-order-item {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .route-order-item:first-child { border-top: none; }
+
+    /* ── MAP ── */
+    #map {
+      flex: 1;
+      z-index: 1;
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 480px;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 24px;
+      animation: modalIn 0.25s ease;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 20px;
+    }
+
+    .modal-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 20px;
+    }
+
+    .modal-tab {
+      flex: 1;
+      padding: 8px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .modal-tab.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .form-group { margin-bottom: 14px; }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus { border-color: var(--accent); }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .quick-btn {
+      padding: 8px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .quick-btn:hover { border-color: var(--accent); background: rgba(255,107,53,0.1); }
+    .quick-btn.selected { border-color: var(--accent); background: rgba(255,107,53,0.15); color: var(--accent); }
+
+    .quick-btn .sub { font-size: 10px; color: var(--muted); font-weight: 400; display: block; margin-top: 2px; }
+
+    .suggestions {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .suggestion-item {
+      padding: 10px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: var(--surface2); }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn-cancel {
+      flex: 1;
+      padding: 11px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+
+    .btn-submit {
+      flex: 2;
+      padding: 11px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-submit:hover { background: #ff8556; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      z-index: 2000;
+      animation: toastIn 0.3s ease;
+      max-width: 300px;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 30px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state .icon { font-size: 32px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; line-height: 1.6; }
+
+    /* Leaflet overrides */
+    .leaflet-container { background: #0a0a14 !important; }
+    .leaflet-tile { filter: brightness(0.7) saturate(0.8) hue-rotate(200deg); }
+
+    .custom-marker {
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: 800;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .legend {
+      position: absolute;
+      bottom: 24px;
+      left: 350px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      z-index: 500;
+      font-size: 11px;
+    }
+
+    .legend-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .optimizing-msg {
+      background: rgba(255,209,102,0.1);
+      border: 1px solid rgba(255,209,102,0.3);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--accent2);
+      margin-top: 8px;
+      text-align: center;
+      display: none;
+    }
+
+    .optimizing-msg.show { display: block; }
+
+    /* ── STATUS BADGES ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-pending   { background: rgba(122,122,154,0.15); color: var(--muted); border: 1px solid rgba(122,122,154,0.3); }
+    .status-picked_up { background: rgba(255,209,102,0.15); color: var(--accent2); border: 1px solid rgba(255,209,102,0.3); }
+    .status-delivered { background: rgba(6,214,160,0.15);   color: var(--green);  border: 1px solid rgba(6,214,160,0.3); }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-pending   .status-dot { background: var(--muted); }
+    .status-picked_up .status-dot { background: var(--accent2); animation: pulse 1s infinite; }
+    .status-delivered .status-dot { background: var(--green); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.7); }
+    }
+
+    /* ── ROUTE CARD ENHANCEMENTS ── */
+    .route-progress {
+      margin-top: 10px;
+      background: var(--bg);
+      border-radius: 6px;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .route-progress-bar {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 1s linear;
+      background: var(--accent);
+    }
+
+    .route-eta {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--accent2);
+      margin-top: 6px;
+    }
+
+    .route-order-item .order-status {
+      margin-left: auto;
+    }
+
+    /* ── RIDER ANIMATION ── */
+    .rider-moving {
+      animation: riderBounce 0.5s ease infinite alternate;
+    }
+
+    @keyframes riderBounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-3px); }
+    }
+
+    /* ── DELIVERY COMPLETE BANNER ── */
+    .delivery-complete {
+      background: rgba(6,214,160,0.1);
+      border: 1px solid rgba(6,214,160,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--green);
+      margin-top: 8px;
+      text-align: center;
+      display: none;
+      font-weight: 600;
+    }
+
+    .delivery-complete.show { display: block; animation: slideIn 0.3s ease; }
+
+    /* ── SIMULATE BTN ── */
+    .btn-simulate {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: rgba(6,214,160,0.1);
+      color: var(--green);
+      border: 1px solid rgba(6,214,160,0.3);
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: none;
+    }
+
+    .btn-simulate.show { display: block; }
+    .btn-simulate:hover { background: rgba(6,214,160,0.2); }
+
+    /* ── ROUTE CARD FOCUS ── */
+    .route-card.focused {
+      border-color: var(--accent2) !important;
+      background: rgba(255,209,102,0.06) !important;
+      box-shadow: 0 0 0 2px rgba(255,209,102,0.2);
+    }
   </style>
 </head>
 <body>
-<div id="root"></div>
 
-<script type="text/babel">
-  const { useState, useEffect, useRef, useCallback } = React;
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚚</div>
+    Route Optimizer
+  </div>
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-val" id="stat-orders">0</div>
+      <div class="stat-label">Orders</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-routes">0</div>
+      <div class="stat-label">Routes</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-riders">0</div>
+      <div class="stat-label">Riders</div>
+    </div>
+  </div>
+  <div class="conn-badge">
+    <div class="conn-dot" id="conn-dot"></div>
+    <span id="conn-text">Connecting...</span>
+  </div>
+</header>
 
-  // ── Bangalore location presets ────────────────────────────────────────────────
-  const REST_PRESETS = [
-    { name: "Truffles, Koramangala",           lat: 12.9352, lng: 77.6245 },
-    { name: "Meghana Foods, Indiranagar",      lat: 12.9784, lng: 77.6408 },
-    { name: "MTR Restaurant, Lalbagh",         lat: 12.9509, lng: 77.5848 },
-    { name: "Empire Restaurant, MG Road",      lat: 12.9758, lng: 77.6095 },
-    { name: "Vidyarthi Bhavan, Gandhi Bazaar", lat: 12.9432, lng: 77.5718 },
-    { name: "Toit Brewpub, Indiranagar",       lat: 12.9792, lng: 77.6389 },
-    { name: "The Only Place, Museum Road",     lat: 12.9716, lng: 77.5987 },
-    { name: "Brahmin's Coffee Bar, Basavanagudi", lat: 12.9422, lng: 77.5730 },
-  ];
+<!-- MAIN -->
+<div class="main">
 
-  const CUST_PRESETS = [
-    { name: "HSR Layout Sector 2",         lat: 12.9116, lng: 77.6389 },
-    { name: "Whitefield ITPL Gate",        lat: 12.9836, lng: 77.7513 },
-    { name: "Marathahalli Bridge",         lat: 12.9591, lng: 77.6974 },
-    { name: "Yelahanka New Town",          lat: 13.1007, lng: 77.5963 },
-    { name: "Electronic City Phase 1",     lat: 12.8399, lng: 77.6770 },
-    { name: "Banashankari 3rd Stage",      lat: 12.9253, lng: 77.5484 },
-    { name: "Hebbal Flyover",              lat: 13.0350, lng: 77.5970 },
-    { name: "JP Nagar 6th Phase",          lat: 12.9063, lng: 77.5857 },
-  ];
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <button class="btn-optimize" id="btn-optimize" onclick="optimizeRoutes()">
+        ⚡ OPTIMIZE ROUTES
+      </button>
+      <div class="optimizing-msg" id="optimizing-msg">🧠 Optimizing routes...</div>
+      <div class="delivery-complete" id="delivery-complete">🎉 All deliveries complete!</div>
+      <button class="btn-simulate" id="btn-simulate" onclick="startSimulation()">▶ Simulate Deliveries</button>
+      <button class="btn-add-order" onclick="openModal()">+ Add Order</button>
+    </div>
 
-  // ── Demo data — covers all 4 cases ──────────────────────────────────────────
-  //
-  //  CASE 1:1  →  Toit Indiranagar  → customer in Indiranagar     (Priya)
-  //  CASE 1:N  →  MTR Lalbagh       → 3 customers Jayanagar area  (Karthik)
-  //  CASE N:1  →  3 Koramangala restaurants → same HSR customer   (Arjun)
-  //  CASE N:N  →  2 Whitefield restaurants  → 2 Marathahalli cust (Meera)
-  //
-  const DEMO_ORDERS = [
-    // 1:1 ─────────────────────────────────────────────────────────────────────
-    {
-      id: 2001,
-      restaurant: { id: 'r2001', name: "Toit Brewpub, Indiranagar", lat: 12.9792, lng: 77.6389 },
-      customer:   {              name: "Ravi Kumar, Indiranagar",   lat: 12.9760, lng: 77.6420 },
-      caseType: '1:1'
-    },
-    // 1:N ─────────────────────────────────────────────────────────────────────
-    {
-      id: 2002,
-      restaurant: { id: 'r2002', name: "MTR Restaurant, Lalbagh", lat: 12.9509, lng: 77.5848 },
-      customer:   {              name: "Sneha, Banashankari",      lat: 12.9253, lng: 77.5484 },
-      caseType: '1:N'
-    },
-    {
-      id: 2003,
-      restaurant: { id: 'r2002', name: "MTR Restaurant, Lalbagh", lat: 12.9509, lng: 77.5848 },
-      customer:   {              name: "Amit, JP Nagar",           lat: 12.9063, lng: 77.5857 },
-      caseType: '1:N'
-    },
-    {
-      id: 2004,
-      restaurant: { id: 'r2002', name: "MTR Restaurant, Lalbagh", lat: 12.9509, lng: 77.5848 },
-      customer:   {              name: "Divya, Vidyapeeth",        lat: 12.9350, lng: 77.5620 },
-      caseType: '1:N'
-    },
-    // N:1 ─────────────────────────────────────────────────────────────────────
-    {
-      id: 2005,
-      restaurant: { id: 'r2005', name: "Truffles, Koramangala",   lat: 12.9352, lng: 77.6245 },
-      customer:   {              name: "Preethi, HSR Layout",      lat: 12.9116, lng: 77.6389 },
-      caseType: 'N:1'
-    },
-    {
-      id: 2006,
-      restaurant: { id: 'r2006', name: "The Permit Room, Koramangala", lat: 12.9340, lng: 77.6270 },
-      customer:   {              name: "Preethi, HSR Layout",      lat: 12.9116, lng: 77.6389 },
-      caseType: 'N:1'
-    },
-    {
-      id: 2007,
-      restaurant: { id: 'r2007', name: "Sotally Tober, Koramangala",  lat: 12.9330, lng: 77.6255 },
-      customer:   {              name: "Preethi, HSR Layout",      lat: 12.9116, lng: 77.6389 },
-      caseType: 'N:1'
-    },
-    // N:N ─────────────────────────────────────────────────────────────────────
-    {
-      id: 2008,
-      restaurant: { id: 'r2008', name: "Café Azzure, Whitefield",  lat: 12.9698, lng: 77.7499 },
-      customer:   {              name: "Kiran, Marathahalli",       lat: 12.9591, lng: 77.6974 },
-      caseType: 'N:N'
-    },
-    {
-      id: 2009,
-      restaurant: { id: 'r2009', name: "Mainland China, Whitefield", lat: 12.9720, lng: 77.7510 },
-      customer:   {              name: "Ananya, Marathahalli",      lat: 12.9610, lng: 77.6990 },
-      caseType: 'N:N'
-    },
-  ];
-
-  const DEMO_RIDERS = [
-    { id: 'rd1', name: 'Arjun',   lat: 12.9340, lng: 77.6260 }, // near Koramangala (N:1)
-    { id: 'rd2', name: 'Priya',   lat: 12.9800, lng: 77.6400 }, // near Indiranagar (1:1)
-    { id: 'rd3', name: 'Karthik', lat: 12.9520, lng: 77.5840 }, // near Lalbagh (1:N)
-    { id: 'rd4', name: 'Meera',   lat: 12.9710, lng: 77.7500 }, // near Whitefield (N:N)
-  ];
-
-  // ── LocationSearch ────────────────────────────────────────────────────────────
-  function LocationSearch({ label, emoji, presets, onSelect, accentColor = '#667eea' }) {
-    const [query, setQuery]       = useState('');
-    const [results, setResults]   = useState([]);
-    const [loading, setLoading]   = useState(false);
-    const [resolved, setResolved] = useState(null);
-    const [open, setOpen]         = useState(false);
-    const debounce                = useRef(null);
-    const wrapRef                 = useRef(null);
-
-    useEffect(() => {
-      const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-      document.addEventListener('mousedown', close);
-      return () => document.removeEventListener('mousedown', close);
-    }, []);
-
-    const onType = (val) => {
-      setQuery(val); setOpen(true);
-      if (debounce.current) clearTimeout(debounce.current);
-      if (val.length < 3) { setResults([]); setLoading(false); return; }
-      setLoading(true);
-      debounce.current = setTimeout(async () => {
-        try {
-          const r = await fetch(
-            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val + ' Bangalore')}&format=json&limit=5`,
-            { headers: { 'Accept-Language': 'en' } }
-          );
-          const d = await r.json();
-          setResults(d.map(x => ({
-            name: x.display_name.split(',').slice(0, 2).join(',').trim(),
-            full: x.display_name,
-            lat: parseFloat(x.lat),
-            lng: parseFloat(x.lon),
-          })));
-        } catch { setResults([]); }
-        setLoading(false);
-      }, 350);
-    };
-
-    const pick = (item) => {
-      setResolved(item); setQuery(''); setOpen(false); setResults([]);
-      onSelect(item);
-    };
-    const clear = () => { setResolved(null); onSelect(null); };
-
-    const visiblePresets = presets.filter(p =>
-      query.length === 0 || p.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    if (resolved) return (
-      <div className="resolved-chip">
-        <span>{emoji} {resolved.name}</span>
-        <button onClick={clear} title="Change">✕</button>
+    <div class="sidebar-section" id="sidebar-content">
+      <div class="section-title">Orders</div>
+      <div id="orders-list">
+        <div class="empty-state">
+          <div class="icon">📦</div>
+          <p>No orders yet.<br>Add orders to get started.</p>
+        </div>
       </div>
-    );
-
-    return (
-      <div className="search-wrap" ref={wrapRef}>
-        <input
-          className="search-input"
-          type="text"
-          placeholder={`Search ${label} location…`}
-          value={query}
-          onChange={e => onType(e.target.value)}
-          onFocus={() => setOpen(true)}
-          style={{ borderColor: open ? accentColor : '#ddd' }}
-        />
-        {open && (
-          <div className="dropdown">
-            {visiblePresets.map((p, i) => (
-              <div key={`p${i}`} className="drop-item is-preset" onMouseDown={() => pick(p)}>
-                <div className="d-name">{p.name}</div>
-                <div className="d-sub">Quick pick · Bangalore</div>
-              </div>
-            ))}
-            {visiblePresets.length > 0 && (results.length > 0 || loading) &&
-              <div style={{ borderTop: '1px solid #eee' }} />}
-            {loading && <div className="drop-searching">🔍 Searching…</div>}
-            {!loading && results.map((r, i) => (
-              <div key={`r${i}`} className="drop-item" onMouseDown={() => pick(r)}>
-                <div className="d-name">{r.name}</div>
-                <div className="d-sub">{r.full}</div>
-              </div>
-            ))}
-            {!loading && query.length >= 3 && results.length === 0 && visiblePresets.length === 0 &&
-              <div className="drop-searching">No results found</div>}
-          </div>
-        )}
+      <div id="routes-section" style="display:none; margin-top:16px;">
+        <div class="section-title">Routes</div>
+        <div id="routes-list"></div>
       </div>
-    );
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map"></div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-title">Route Types</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> 1→1 One to One</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> 1→N One to Many</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> N→1 Many to One</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div> N→N Many to Many</div>
+  </div>
+</div>
+
+<!-- ADD ORDER MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">Add New Order</div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchTab('quick')">⚡ Quick Pick</button>
+      <button class="modal-tab" onclick="switchTab('search')">🔍 Search Address</button>
+    </div>
+
+    <!-- QUICK TAB -->
+    <div class="tab-content active" id="tab-quick">
+      <div class="form-group">
+        <label class="form-label">Restaurant</label>
+        <div class="quick-grid" id="rest-grid"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Menu Items</label>
+        <input type="text" class="form-input" id="q-items" placeholder="e.g. Masala Dosa, Filter Coffee">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Customer</label>
+        <div class="quick-grid" id="cust-grid"></div>
+      </div>
+    </div>
+
+    <!-- SEARCH TAB -->
+    <div class="tab-content" id="tab-search">
+      <div class="form-group">
+        <label class="form-label">Restaurant Name</label>
+        <input type="text" class="form-input" id="s-rest-name" placeholder="e.g. MTR, Empire">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Restaurant Address</label>
+        <input type="text" class="form-input" id="s-rest-addr" placeholder="Search Bengaluru address..." oninput="searchAddress(this,'rest-suggestions')">
+        <div class="suggestions" id="rest-suggestions" style="display:none"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Menu Items</label>
+        <input type="text" class="form-input" id="s-items" placeholder="e.g. Biryani, Lassi">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Customer Name</label>
+        <input type="text" class="form-input" id="s-cust-name" placeholder="Customer name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Customer Address</label>
+        <input type="text" class="form-input" id="s-cust-addr" placeholder="Search Bengaluru address..." oninput="searchAddress(this,'cust-suggestions')">
+        <div class="suggestions" id="cust-suggestions" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" onclick="addOrder()">Add Order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────────────
+
+const RESTAURANTS = [
+  { id:'r1',  name:'MTR',              lat:12.9542, lng:77.5765, area:'Lalbagh' },
+  { id:'r2',  name:'Vidyarthi Bhavan', lat:12.9466, lng:77.5735, area:'Gandhi Bazaar' },
+  { id:'r3',  name:'Empire',           lat:12.9356, lng:77.6149, area:'Koramangala' },
+  { id:'r4',  name:'Meghana Foods',    lat:12.9352, lng:77.6144, area:'Koramangala' },
+  { id:'r5',  name:'Truffles',         lat:12.9346, lng:77.6147, area:'Koramangala' },
+  { id:'r6',  name:'Toit Brewpub',     lat:12.9589, lng:77.6378, area:'Indiranagar' },
+  { id:'r7',  name:'Punjab Grill',     lat:12.9591, lng:77.6382, area:'Indiranagar' },
+  { id:'r8',  name:'Corner House',     lat:12.9300, lng:77.6100, area:'Koramangala' },
+  { id:'r9',  name:'Nagarjuna',        lat:12.9719, lng:77.5937, area:'Residency Rd' },
+  { id:'r10', name:'Biryani Zone',     lat:12.9349, lng:77.6141, area:'Koramangala' },
+  { id:'r11', name:'CTR',              lat:13.0037, lng:77.5618, area:'Malleshwaram' },
+  { id:'r12', name:'Koshy\'s',         lat:12.9763, lng:77.5930, area:'St Marks Rd' },
+  { id:'r13', name:'Brahmin\'s Coffee',lat:12.9522, lng:77.5756, area:'Basavanagudi' },
+  { id:'r14', name:'Shivaji Military', lat:12.9754, lng:77.5942, area:'MG Road' },
+  { id:'r15', name:'Karavalli',        lat:12.9752, lng:77.5942, area:'Taj Gateway' },
+  { id:'r16', name:'Hammered',         lat:12.9592, lng:77.6379, area:'Indiranagar' },
+  { id:'r17', name:'The Black Pearl',  lat:12.9120, lng:77.6326, area:'HSR Layout' },
+  { id:'r18', name:'Smoke House Deli', lat:12.9596, lng:77.6389, area:'Indiranagar' },
+  { id:'r19', name:'Social',           lat:12.9594, lng:77.6371, area:'Indiranagar' },
+  { id:'r20', name:'Chinita',          lat:12.9118, lng:77.6329, area:'HSR Layout' },
+];
+
+const CUSTOMERS = [
+  { name:'Arun Kumar',    lat:12.9716, lng:77.5946, area:'MG Road' },
+  { name:'Priya Menon',   lat:12.9279, lng:77.6271, area:'HSR Layout' },
+  { name:'Rohan Das',     lat:12.9352, lng:77.6245, area:'Koramangala 5th Block' },
+  { name:'Tarun Sharma',  lat:12.9359, lng:77.6148, area:'Koramangala 4th Block' },
+  { name:'Sneha Rao',     lat:12.9784, lng:77.6408, area:'Indiranagar' },
+  { name:'Vikram Nair',   lat:13.0358, lng:77.5970, area:'Hebbal' },
+  { name:'Ananya Singh',  lat:12.9253, lng:77.6769, area:'Whitefield' },
+  { name:'Deepa Shetty',  lat:12.9121, lng:77.5939, area:'Jayanagar' },
+  { name:'Kiran Mehta',   lat:12.9197, lng:77.6243, area:'BTM Layout' },
+  { name:'Riya Thomas',   lat:13.0036, lng:77.5617, area:'Malleshwaram' },
+  { name:'Arjun Pillai',  lat:12.9698, lng:77.7499, area:'Whitefield' },
+  { name:'Lavanya Reddy', lat:12.9552, lng:77.7011, area:'KR Puram' },
+];
+
+const RIDER_POOL = [
+  { id:'rd1', name:'Rajesh',   lat:12.9716, lng:77.5946 },
+  { id:'rd2', name:'Sathish',  lat:12.9352, lng:77.6149 },
+  { id:'rd3', name:'Karthik',  lat:12.9592, lng:77.6379 },
+  { id:'rd4', name:'Deepa',    lat:13.0037, lng:77.5618 },
+  { id:'rd5', name:'Ravi',     lat:12.9466, lng:77.5735 },
+  { id:'rd6', name:'Anitha',   lat:12.9279, lng:77.6271 },
+  { id:'rd7', name:'Sunil',    lat:13.0358, lng:77.5970 },
+  { id:'rd8', name:'Pooja',    lat:12.9121, lng:77.5939 },
+  { id:'rd9', name:'Mahesh',   lat:12.9253, lng:77.6769 },
+  { id:'rd10',name:'Kavitha',  lat:12.9197, lng:77.6243 },
+];
+
+const DUMMY_ORDERS = [
+  { restaurant: RESTAURANTS[4], items: 'Chocolate Sizzler', customer: CUSTOMERS[2] },
+  { restaurant: RESTAURANTS[4], items: 'Continental Sizzler', customer: CUSTOMERS[3] },
+  { restaurant: RESTAURANTS[3], items: 'Chicken Biryani', customer: CUSTOMERS[1] },
+  { restaurant: RESTAURANTS[9], items: 'Veg Biryani', customer: CUSTOMERS[1] },
+  { restaurant: RESTAURANTS[0], items: 'Masala Dosa, Filter Coffee', customer: CUSTOMERS[0] },
+  { restaurant: RESTAURANTS[5], items: 'Craft Beer, Nachos', customer: CUSTOMERS[4] },
+  { restaurant: RESTAURANTS[6], items: 'Dal Makhani, Naan', customer: CUSTOMERS[5] },
+];
+
+const ROUTE_COLORS = {
+  one_to_one:   '#4ecdc4',
+  one_to_many:  '#06d6a0',
+  many_to_one:  '#9b5de5',
+  many_to_many: '#ffd166',
+};
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let orders = [];
+let mapMarkers = [];
+let routeLines = [];
+let selectedRest = null;
+let selectedCust = null;
+let activeTab = 'quick';
+let restCoords = null;
+let custCoords = null;
+let orderCounter = 1;
+
+// ── MAP INIT ─────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([12.9716, 77.5946], 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19,
+}).addTo(map);
+
+// ── SOCKET ───────────────────────────────────────────────────────────────────
+const socket = io('http://localhost:5500');
+socket.on('connect', () => {
+  document.getElementById('conn-dot').classList.add('connected');
+  document.getElementById('conn-text').textContent = 'Connected';
+});
+socket.on('disconnect', () => {
+  document.getElementById('conn-dot').classList.remove('connected');
+  document.getElementById('conn-text').textContent = 'Disconnected';
+});
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+window.onload = () => {
+  buildQuickGrids();
+  loadDummyOrders();
+};
+
+function loadDummyOrders() {
+  DUMMY_ORDERS.forEach(o => {
+    orders.push({
+      id: orderCounter++,
+      restaurant: { ...o.restaurant },
+      items: o.items,
+      customer: { ...o.customer },
+    });
+  });
+  renderOrders();
+  renderOrderMarkers();
+  updateStats();
+}
+
+// ── QUICK GRIDS ──────────────────────────────────────────────────────────────
+function buildQuickGrids() {
+  const rg = document.getElementById('rest-grid');
+  rg.innerHTML = RESTAURANTS.map((r, i) => `
+    <button class="quick-btn" onclick="selectRest(${i})" id="rb-${i}">
+      ${r.name}
+      <span class="sub">${r.area}</span>
+    </button>`).join('');
+
+  const cg = document.getElementById('cust-grid');
+  cg.innerHTML = CUSTOMERS.map((c, i) => `
+    <button class="quick-btn" onclick="selectCust(${i})" id="cb-${i}">
+      ${c.name}
+      <span class="sub">${c.area}</span>
+    </button>`).join('');
+}
+
+function selectRest(i) {
+  selectedRest = i;
+  document.querySelectorAll('#rest-grid .quick-btn').forEach((b, j) => b.classList.toggle('selected', j === i));
+}
+
+function selectCust(i) {
+  selectedCust = i;
+  document.querySelectorAll('#cust-grid .quick-btn').forEach((b, j) => b.classList.toggle('selected', j === i));
+}
+
+// ── MODAL ────────────────────────────────────────────────────────────────────
+function openModal() {
+  selectedRest = null; selectedCust = null;
+  restCoords = null; custCoords = null;
+  document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('q-items').value = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.modal-tab').forEach((t, i) => t.classList.toggle('active', (i === 0 && tab === 'quick') || (i === 1 && tab === 'search')));
+  document.getElementById('tab-quick').classList.toggle('active', tab === 'quick');
+  document.getElementById('tab-search').classList.toggle('active', tab === 'search');
+}
+
+// ── ADDRESS SEARCH ───────────────────────────────────────────────────────────
+let searchTimers = {};
+function searchAddress(input, suggestionsId) {
+  const val = input.value.trim();
+  const box = document.getElementById(suggestionsId);
+  clearTimeout(searchTimers[suggestionsId]);
+  if (val.length < 3) { box.style.display = 'none'; return; }
+  searchTimers[suggestionsId] = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val + ', Bengaluru')}&format=json&limit=5`);
+      const data = await res.json();
+      if (!data.length) { box.style.display = 'none'; return; }
+      box.style.display = 'block';
+      box.innerHTML = data.map(d => `
+        <div class="suggestion-item" onclick="selectAddress('${suggestionsId}','${d.display_name.replace(/'/g,"\\'")}',${d.lat},${d.lon})">
+          ${d.display_name}
+        </div>`).join('');
+    } catch { box.style.display = 'none'; }
+  }, 400);
+}
+
+function selectAddress(suggestionsId, name, lat, lng) {
+  const box = document.getElementById(suggestionsId);
+  box.style.display = 'none';
+  if (suggestionsId === 'rest-suggestions') {
+    document.getElementById('s-rest-addr').value = name;
+    restCoords = { lat: parseFloat(lat), lng: parseFloat(lng) };
+  } else {
+    document.getElementById('s-cust-addr').value = name;
+    custCoords = { lat: parseFloat(lat), lng: parseFloat(lng) };
+  }
+}
+
+// ── ADD ORDER ────────────────────────────────────────────────────────────────
+function addOrder() {
+  let restaurant, customer, items;
+
+  if (activeTab === 'quick') {
+    if (selectedRest === null) { showToast('⚠️ Please select a restaurant'); return; }
+    if (selectedCust === null) { showToast('⚠️ Please select a customer'); return; }
+    restaurant = { ...RESTAURANTS[selectedRest] };
+    customer   = { ...CUSTOMERS[selectedCust] };
+    items      = document.getElementById('q-items').value || 'House Special';
+  } else {
+    const rName = document.getElementById('s-rest-name').value.trim();
+    const cName = document.getElementById('s-cust-name').value.trim();
+    items       = document.getElementById('s-items').value.trim() || 'House Special';
+    if (!rName || !restCoords) { showToast('⚠️ Select a restaurant address'); return; }
+    if (!cName || !custCoords) { showToast('⚠️ Select a customer address'); return; }
+    restaurant = { id: 'custom_' + Date.now(), name: rName, ...restCoords };
+    customer   = { name: cName, ...custCoords };
   }
 
-  // ── App ───────────────────────────────────────────────────────────────────────
-  function App() {
-    const [orders, setOrders]             = useState(DEMO_ORDERS);
-    const [riders, setRiders]             = useState(DEMO_RIDERS);
-    const [routes, setRoutes]             = useState([]);
-    const [showOrderModal, setShowOrder]  = useState(false);
-    const [showRiderModal, setShowRider]  = useState(false);
-    const [formError, setFormError]       = useState('');
-    const [routeStats, setRouteStats]     = useState(null);
-    const [optimizing, setOptimizing]     = useState(false);
+  const order = { id: orderCounter++, restaurant, items, customer };
+  orders.push(order);
+  renderOrders();
+  addOrderMarker(order);
+  updateStats();
+  closeModal();
+  showToast(`✅ Order #${order.id} added`);
+}
 
-    // order form
-    const [restLoc, setRestLoc] = useState(null);
-    const [custLoc, setCustLoc] = useState(null);
-    // rider form
-    const [riderName, setRiderName] = useState('');
-    const [riderLoc, setRiderLoc]   = useState(null);
+// ── RENDER ORDERS ────────────────────────────────────────────────────────────
+function renderOrders() {
+  const list = document.getElementById('orders-list');
+  if (!orders.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>No orders yet.<br>Add orders to get started.</p></div>`;
+    return;
+  }
+  list.innerHTML = orders.map(o => `
+    <div class="order-card" id="oc-${o.id}">
+      <div class="order-header">
+        <span class="order-id">#${String(o.id).padStart(3,'0')}</span>
+        <button class="order-delete" onclick="deleteOrder(${o.id})">✕</button>
+      </div>
+      <div class="order-rest">🏪 ${o.restaurant.name}</div>
+      <div class="order-items">${o.items}</div>
+      <div class="order-customer">👤 ${o.customer.name} · ${o.customer.area || ''}</div>
+    </div>`).join('');
+}
 
-    const mapRef    = useRef(null);
-    const socketRef = useRef(null);
-    const CENTER    = [12.9716, 77.5946];
+function deleteOrder(id) {
+  orders = orders.filter(o => o.id !== id);
+  renderOrders();
+  renderOrderMarkers();
+  updateStats();
+}
 
-    // Init map
-    useEffect(() => {
-      if (mapRef.current) return;
-      const map = L.map('map').setView(CENTER, 12);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap © CartoDB', maxZoom: 19
-      }).addTo(map);
-      mapRef.current = map;
-    }, []);
+// ── MARKERS ──────────────────────────────────────────────────────────────────
+function clearMapMarkers() {
+  mapMarkers.forEach(m => map.removeLayer(m));
+  mapMarkers = [];
+}
 
-    // Socket
-    useEffect(() => {
-      try {
-    socketRef.current = io('https://route-optimizer-for-food-delivery-production.up.railway.app');
-        socketRef.current.on('routes_updated', setRoutes);
-      } catch(e) {}
-      return () => socketRef.current?.disconnect();
-    }, []);
+function clearRouteLines() {
+  routeLines.forEach(l => map.removeLayer(l));
+  routeLines = [];
+}
 
-    const addMarker = (lat, lng, html) => {
-      if (!mapRef.current) return;
-      L.marker([lat, lng], {
-        icon: L.divIcon({ html, className: '', iconSize: [30, 30], iconAnchor: [15, 15] })
-      }).addTo(mapRef.current);
-    };
+function renderOrderMarkers() {
+  clearMapMarkers();
+  orders.forEach(o => addOrderMarker(o));
+}
 
-    // ── Submit order ──
-    const submitOrder = () => {
-      if (!restLoc) { setFormError('Please select a restaurant location.'); return; }
-      if (!custLoc) { setFormError('Please select a customer location.'); return; }
-      const o = {
-        id: Date.now(),
-        restaurant: { id: `r${Date.now()}`, name: restLoc.name, lat: restLoc.lat, lng: restLoc.lng },
-        customer:   { name: custLoc.name, lat: custLoc.lat, lng: custLoc.lng },
-      };
-      setOrders(p => [...p, o]);
-      addMarker(restLoc.lat, restLoc.lng, '🏪');
-      addMarker(custLoc.lat, custLoc.lng, '📱');
-      setRestLoc(null); setCustLoc(null); setFormError(''); setShowOrder(false);
-    };
+function addOrderMarker(order) {
+  const rIcon = L.divIcon({
+    html: `<div class="custom-marker" style="width:28px;height:28px;background:#ff6b35;font-size:11px;color:white">🏪</div>`,
+    className: '', iconSize: [28,28], iconAnchor: [14,14],
+  });
+  const cIcon = L.divIcon({
+    html: `<div class="custom-marker" style="width:28px;height:28px;background:#4ecdc4;font-size:11px;color:white">👤</div>`,
+    className: '', iconSize: [28,28], iconAnchor: [14,14],
+  });
 
-    // ── Submit rider ──
-    const submitRider = () => {
-      if (!riderName.trim()) { setFormError('Enter rider name.'); return; }
-      if (!riderLoc)         { setFormError('Select rider location.'); return; }
-      const r = { id: `rd${Date.now()}`, name: riderName.trim(), lat: riderLoc.lat, lng: riderLoc.lng };
-      setRiders(p => [...p, r]);
-      addMarker(riderLoc.lat, riderLoc.lng, '🚴');
-      setRiderName(''); setRiderLoc(null); setFormError(''); setShowRider(false);
-    };
+  const rm = L.marker([order.restaurant.lat, order.restaurant.lng], { icon: rIcon })
+    .addTo(map)
+    .bindPopup(`<b>${order.restaurant.name}</b><br>${order.items}`);
+  const cm = L.marker([order.customer.lat, order.customer.lng], { icon: cIcon })
+    .addTo(map)
+    .bindPopup(`<b>${order.customer.name}</b>`);
 
-    const addRandomRider = () => {
-      const r = {
-        id: `rd${Date.now()}`,
-        name: `Rider ${riders.length + 1}`,
-        lat: CENTER[0] + (Math.random() - 0.5) * 0.09,
-        lng: CENTER[1] + (Math.random() - 0.5) * 0.09,
-      };
-      setRiders(p => [...p, r]);
-      addMarker(r.lat, r.lng, '🚴');
-      setShowRider(false);
-    };
+  mapMarkers.push(rm, cm);
+}
 
-    const deleteOrder = (id) => setOrders(p => p.filter(o => o.id !== id));
-    const clearAll    = () => { setOrders([]); setRiders([]); setRoutes([]); setRouteStats(null); };
-    const loadDemo    = () => { setOrders(DEMO_ORDERS); setRiders(DEMO_RIDERS); setRoutes([]); setRouteStats(null); };
+function addRiderMarker(rider, isAuto) {
+  const color = isAuto ? '#ff6b35' : '#ffd166';
+  const icon = L.divIcon({
+    html: `<div class="custom-marker" style="width:30px;height:30px;background:${color};font-size:13px;color:white">${isAuto ? 'A' : '🚴'}</div>`,
+    className: '', iconSize: [30,30], iconAnchor: [15,15],
+  });
+  const m = L.marker([rider.lat, rider.lng], { icon })
+    .addTo(map)
+    .bindPopup(`<b>${rider.name}</b><br>${isAuto ? 'Auto-assigned' : 'Manual rider'}`);
+  mapMarkers.push(m);
+}
 
-    // ── Optimize ──
-    const optimizeRoutes = async () => {
-      setOptimizing(true);
-      try {
-        const res = await fetch('https://route-optimizer-for-food-delivery-production.up.railway.app/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orders, deliveryPersons: riders })
-        });
-        const data = await res.json();
-        setRoutes(data);
+// ── OPTIMIZE ─────────────────────────────────────────────────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 
-        if (mapRef.current) {
-          mapRef.current.eachLayer(l => { if (!(l instanceof L.TileLayer)) mapRef.current.removeLayer(l); });
+function autoAssignRiders(orderList) {
+  const pool = RIDER_POOL.map(r => ({ ...r, load: 0 }));
+  const assigned = {};
 
-          const palette = ['#e74c3c','#3498db','#f39c12','#9b59b6','#1abc9c','#e67e22'];
-          const riderColors = {};
-          let ci = 0, totalKm = 0;
+  const byRest = {};
+  orderList.forEach((o, i) => {
+    const key = o.restaurant.id || o.restaurant.name;
+    if (!byRest[key]) byRest[key] = [];
+    byRest[key].push(i);
+  });
 
-          for (const route of data) {
-            if (!riderColors[route.rider]) { riderColors[route.rider] = palette[ci++ % palette.length]; }
-            const color = riderColors[route.rider];
-            if (route.estimatedDistance) totalKm += parseFloat(route.estimatedDistance) || 0;
+  const clusters = Object.values(byRest);
+  clusters.forEach(clusterIdxs => {
+    const anchor = orderList[clusterIdxs[0]];
+    const best = pool.sort((a,b) => {
+      const da = haversine(a.lat,a.lng,anchor.restaurant.lat,anchor.restaurant.lng) + a.load*2;
+      const db = haversine(b.lat,b.lng,anchor.restaurant.lat,anchor.restaurant.lng) + b.load*2;
+      return da-db;
+    })[0];
+    best.load += clusterIdxs.length;
+    clusterIdxs.forEach(i => assigned[i] = best);
+  });
 
-            if (route.routePoints?.length > 1) {
-              const coords = route.routePoints.map(p => `${p.lng},${p.lat}`).join(';');
-              try {
-                const or = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-                const od = await or.json();
-                if (od.routes?.[0]) {
-                  const rc = od.routes[0].geometry.coordinates.map(([ln, la]) => [la, ln]);
-                  L.polyline(rc, { color: 'rgba(0,0,0,0.18)', weight: 10, opacity: 1 }).addTo(mapRef.current);
-                  L.polyline(rc, {
-                    color, weight: 6, opacity: 0.95,
-                    lineJoin: 'round', lineCap: 'round',
-                    dashArray: route.type === 'one_to_one' ? null : '10,6'
-                  }).addTo(mapRef.current);
-                }
-              } catch {
-                L.polyline(route.routePoints.map(p => [p.lat, p.lng]), { color, weight: 6 }).addTo(mapRef.current);
-              }
+  return { riders: Object.values(assigned).filter((v,i,a) => a.indexOf(v)===i), assigned };
+}
 
-              // Pickup markers
-              route.routePoints.filter(p => p.type === 'pickup').forEach(p => {
-                L.marker([p.lat, p.lng], { icon: L.divIcon({
-                  html: `<div style="background:${color};width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4)"><div style="transform:rotate(45deg);text-align:center;line-height:26px;font-size:14px">🏪</div></div>`,
-                  className:'', iconSize:[32,32], iconAnchor:[16,32]
-                })}).bindPopup(`<b>🏪 ${p.name}</b><br>Pickup — <b>${route.rider}</b>`).addTo(mapRef.current);
-              });
+async function optimizeRoutes() {
+  if (!orders.length) { showToast('⚠️ Add at least one order first'); return; }
 
-              // Dropoff markers
-              route.routePoints.filter(p => p.type === 'dropoff').forEach(p => {
-                L.marker([p.lat, p.lng], { icon: L.divIcon({
-                  html: `<div style="background:white;width:28px;height:28px;border-radius:50%;border:3px solid ${color};box-shadow:0 2px 8px rgba(0,0,0,0.4);text-align:center;line-height:22px;font-size:14px">📱</div>`,
-                  className:'', iconSize:[28,28], iconAnchor:[14,14]
-                })}).bindPopup(`<b>📱 ${p.name}</b><br>Dropoff — <b>${route.rider}</b>`).addTo(mapRef.current);
-              });
+  const btn = document.getElementById('btn-optimize');
+  const msg = document.getElementById('optimizing-msg');
+  btn.disabled = true;
+  btn.textContent = '⏳ Optimizing...';
+  msg.classList.add('show');
 
-              // Rider start marker
-              if (route.riderStart) {
-                L.marker([route.riderStart.lat, route.riderStart.lng], { icon: L.divIcon({
-                  html: `<div style="background:#333;color:white;width:34px;height:34px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);text-align:center;line-height:28px;font-size:16px">🚴</div>`,
-                  className:'', iconSize:[34,34], iconAnchor:[17,17]
-                })}).bindPopup(`<b>🚴 ${route.rider}</b><br>Starting point`).addTo(mapRef.current);
-              }
-            }
-          }
+  clearRouteLines();
 
-          const allPts = data.flatMap(r => r.routePoints?.map(p => [p.lat, p.lng]) || []);
-          if (allPts.length > 0) mapRef.current.fitBounds(allPts, { padding: [50, 50] });
+  const { riders, assigned } = autoAssignRiders(orders);
+  riders.forEach(r => addRiderMarker(r, true));
 
-          setRouteStats({
-            riders: [...new Set(data.map(r => r.rider))].length,
-            orders: orders.length,
-            routes: data.length,
-            km: totalKm.toFixed(1)
-          });
-        }
-      } catch (err) {
-        alert('🚨 Start backend first!\n\nRun: cd backend && npm start');
-        console.error(err);
+  try {
+    const res = await fetch('http://localhost:5500/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orders, deliveryPersons: riders }),
+    });
+
+    const routes = await res.json();
+    currentRoutes = routes;
+    simulationActive = false;
+    simulationTimers.forEach(clearTimeout);
+    simulationTimers = [];
+    Object.values(riderMapMarkers).forEach(m => map.removeLayer(m));
+    riderMapMarkers = {};
+    renderRoutes(routes);
+    focusedRouteIdx = null;
+    await drawRouteLines(routes);
+    updateStats(routes);
+    document.getElementById('btn-simulate').style.display = 'block';
+    document.getElementById('delivery-complete').classList.remove('show');
+    showToast(`✅ ${routes.length} routes optimized!`);
+  } catch (err) {
+    showToast('❌ Backend error — is the server running?');
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⚡ OPTIMIZE ROUTES';
+  msg.classList.remove('show');
+}
+
+// ── RENDER ROUTES ────────────────────────────────────────────────────────────
+function renderRoutes(routes) {
+  const section = document.getElementById('routes-section');
+  const list    = document.getElementById('routes-list');
+  if (!routes.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = routes.map((r, ri) => `
+    <div class="route-card" id="rc-${ri}" onclick="focusRoute(${ri})" style="cursor:pointer">
+      <div class="route-header">
+        <span class="route-type-badge badge-${r.type}">${r.type.replace(/_/g,' ')}</span>
+        <div class="route-meta">
+          <span id="eta-${ri}">⏱ ${r.estimatedTime}m</span>
+          <span>📍 ${r.estimatedDistance}km</span>
+        </div>
+      </div>
+      <div class="route-rider">🚴 ${r.rider}
+        <span id="rider-status-${ri}" class="status-badge status-pending" style="margin-left:8px">
+          <span class="status-dot"></span>Pending
+        </span>
+      </div>
+      <div class="route-rest">🏪 ${r.restaurants}</div>
+      <div class="route-progress"><div class="route-progress-bar" id="prog-${ri}" style="width:0%"></div></div>
+      <div class="route-orders" id="ro-${ri}">
+        ${r.orders.map((o, oi) => `
+          <div class="route-order-item" id="roi-${ri}-${oi}">
+            <span>📦</span>
+            <span>${o.restaurant.name} → ${o.customer.name}</span>
+            <span class="order-status">
+              <span class="status-badge status-pending" id="os-${ri}-${oi}">
+                <span class="status-dot"></span>Pending
+              </span>
+            </span>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// ── FOCUS ROUTE ON CLICK ─────────────────────────────────────────────────────
+let focusedRouteIdx = null;
+
+function focusRoute(ri) {
+  // If clicking the already-focused card, unfocus and zoom back to all routes
+  if (focusedRouteIdx === ri) {
+    focusedRouteIdx = null;
+    document.querySelectorAll('.route-card').forEach(c => c.classList.remove('focused'));
+    // Dim all lines back to normal opacity
+    routeLines.forEach(l => l.setStyle({ opacity: 0.8, weight: 4 }));
+    // Zoom to fit all routes
+    if (routeLines.length) {
+      map.fitBounds(L.featureGroup(routeLines).getBounds().pad(0.1));
+    }
+    return;
+  }
+
+  focusedRouteIdx = ri;
+
+  // Highlight selected card, dim others
+  document.querySelectorAll('.route-card').forEach((c, i) => {
+    c.classList.toggle('focused', i === ri);
+  });
+
+  // Dim all route lines, brighten the selected one
+  routeLines.forEach((l, i) => {
+    if (i === ri) {
+      l.setStyle({ opacity: 1, weight: 6 });
+    } else {
+      l.setStyle({ opacity: 0.15, weight: 3 });
+    }
+  });
+
+  // Zoom map to this route's bounds
+  const geom = routeGeometries[ri];
+  if (geom && geom.length) {
+    const latlngs = geom.map(([lng, lat]) => [lat, lng]);
+    map.fitBounds(L.polyline(latlngs).getBounds().pad(0.15));
+  }
+}
+
+// ── DRAW ROUTE LINES ─────────────────────────────────────────────────────────
+const routeGeometries = {};
+
+async function drawRouteLines(routes) {
+  for (let ri = 0; ri < routes.length; ri++) {
+    const route = routes[ri];
+    const pts = route.routePoints;
+    if (!pts || pts.length < 2) continue;
+    const color = ROUTE_COLORS[route.type] || '#ff6b35';
+    try {
+      const coords = pts.map(p => `${p.lng},${p.lat}`).join(';');
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+      const data = await res.json();
+      if (data.routes && data.routes[0]) {
+        routeGeometries[ri] = data.routes[0].geometry.coordinates;
+        const line = L.geoJSON(data.routes[0].geometry, {
+          style: { color, weight: 4, opacity: 0.8, dashArray: route.type === 'one_to_one' ? null : '8,4' },
+        }).addTo(map);
+        routeLines.push(line);
       }
-      setOptimizing(false);
-    };
+    } catch {
+      const latlngs = pts.map(p => [p.lat, p.lng]);
+      routeGeometries[ri] = latlngs.map(ll => [ll[1], ll[0]]);
+      const line = L.polyline(latlngs, { color, weight: 3, opacity: 0.7, dashArray: '6,4' }).addTo(map);
+      routeLines.push(line);
+    }
+  }
+  if (routeLines.length) {
+    const group = L.featureGroup(routeLines);
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+}
 
-    const casePillColor = (type) => ({
-      one_to_one: '#2196F3', one_to_many: '#FF9800',
-      many_to_one: '#9C27B0', many_to_many: '#4CAF50'
-    }[type] || '#888');
+// ── SIMULATION ────────────────────────────────────────────────────────────────
+let simulationActive = false;
+let simulationTimers = [];
+let riderMapMarkers = {};
+let currentRoutes = [];
+let etaIntervals = [];
 
-    return (
-      <div className="container">
+function startSimulation() {
+  if (simulationActive) return;
+  if (!currentRoutes.length) { showToast('⚠️ Optimize routes first'); return; }
+  simulationActive = true;
+  document.getElementById('btn-simulate').style.display = 'none';
+  document.getElementById('delivery-complete').classList.remove('show');
+  showToast('▶ Simulation started!');
+  currentRoutes.forEach((route, ri) => {
+    const totalMs = Math.max(route.estimatedTime * 800, 8000);
+    animateRider(ri, route, totalMs);
+  });
+}
 
-        {/* ── Order Modal ── */}
-        {showOrderModal && (
-          <div className="modal-overlay" onClick={() => { setShowOrder(false); setFormError(''); setRestLoc(null); setCustLoc(null); }}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-              <h3>📦 Add New Order</h3>
+function animateRider(ri, route, totalMs) {
+  const geom = routeGeometries[ri];
+  if (!geom || geom.length < 2) return;
 
-              <div className="loc-section">
-                <h4>🏪 Restaurant Location</h4>
-                <LocationSearch label="restaurant" emoji="🏪" presets={REST_PRESETS} onSelect={setRestLoc} accentColor="#667eea" />
-              </div>
+  const mkIcon = (emoji, bg) => L.divIcon({
+    html: `<div style="width:34px;height:34px;background:${bg};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid white;box-shadow:0 3px 10px rgba(0,0,0,0.5)">${emoji}</div>`,
+    className: '', iconSize: [34,34], iconAnchor: [17,17],
+  });
 
-              <div className="loc-section customer">
-                <h4>📱 Customer Location</h4>
-                <LocationSearch label="customer" emoji="📱" presets={CUST_PRESETS} onSelect={setCustLoc} accentColor="#4CAF50" />
-              </div>
+  // Place rider at start — status stays PENDING until they reach the restaurant
+  const marker = L.marker([geom[0][1], geom[0][0]], { icon: mkIcon('🚴', '#ffd166'), zIndexOffset: 1000 })
+    .addTo(map).bindPopup(`<b>${route.rider}</b>`);
+  riderMapMarkers[`rider-${ri}`] = marker;
 
-              {formError && <div style={{ color:'#f44336', fontSize:13, marginBottom:8 }}>⚠️ {formError}</div>}
+  // Explicitly set initial state to pending
+  setRouteStatus(ri, 'pending');
 
-              <div className="form-actions">
-                <button className="btn btn-outline" onClick={() => { setShowOrder(false); setFormError(''); setRestLoc(null); setCustLoc(null); }}>Cancel</button>
-                <button className="btn btn-primary" onClick={submitOrder} disabled={!restLoc || !custLoc}>Add Order ✓</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Rider Modal ── */}
-        {showRiderModal && (
-          <div className="modal-overlay" onClick={() => { setShowRider(false); setFormError(''); setRiderName(''); setRiderLoc(null); }}>
-            <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
-              <h3>🚴 Add Delivery Rider</h3>
-              <div className="loc-section">
-                <h4>Rider Details</h4>
-                <div className="form-group">
-                  <label>Rider Name</label>
-                  <input type="text" placeholder="e.g. Arjun" value={riderName} onChange={e => setRiderName(e.target.value)} />
-                </div>
-                <h4 style={{ marginBottom: 8 }}>📍 Starting Location</h4>
-                <LocationSearch label="location" emoji="📍" presets={[...REST_PRESETS, ...CUST_PRESETS].slice(0,6)} onSelect={setRiderLoc} accentColor="#2196F3" />
-              </div>
-
-              {formError && <div style={{ color:'#f44336', fontSize:13, marginBottom:8 }}>⚠️ {formError}</div>}
-
-              <div className="form-actions">
-                <button className="btn btn-outline" onClick={() => { setShowRider(false); setFormError(''); setRiderName(''); setRiderLoc(null); }}>Cancel</button>
-                <button className="btn btn-secondary" onClick={addRandomRider}>🎲 Random</button>
-                <button className="btn btn-primary" onClick={submitRider}>Add Rider ✓</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Header ── */}
-        <div className="header">
-          <h1 style={{ fontSize: '2rem' }}>🚚 Smart Delivery Route Optimizer</h1>
-          <p style={{ marginTop: 6, opacity: 0.9 }}>Supports all 4 cases · 1:1 &nbsp;·&nbsp; 1:N &nbsp;·&nbsp; N:1 &nbsp;·&nbsp; N:N</p>
-        </div>
-
-        {/* ── Controls ── */}
-        <div className="controls">
-          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'center' }}>
-            <button className="btn btn-primary"   onClick={() => { setShowOrder(true); setFormError(''); }}>+ Add Order ({orders.length})</button>
-            <button className="btn btn-secondary" onClick={() => { setShowRider(true); setFormError(''); }}>+ Add Rider ({riders.length})</button>
-            <button className="btn btn-optimize"  onClick={optimizeRoutes} disabled={orders.length === 0 || riders.length === 0 || optimizing}>
-              {optimizing ? '⏳ Optimizing…' : '🧠 OPTIMIZE ROUTES'}
-            </button>
-            <button className="btn btn-outline"   onClick={loadDemo}>🔄 Load Demo</button>
-            <button className="btn btn-danger"    onClick={clearAll}>🗑 Clear All</button>
-          </div>
-
-          {/* Stats bar after optimize */}
-          {routeStats && (
-            <div className="stats-bar">
-              <span>🚴 <strong>{routeStats.riders}</strong> riders active</span>
-              <span>📦 <strong>{routeStats.orders}</strong> orders</span>
-              <span>🛣️ <strong>{routeStats.routes}</strong> routes</span>
-              <span>📏 <strong>{routeStats.km} km</strong> total</span>
-            </div>
-          )}
-
-          {/* Order list */}
-          {orders.length > 0 && (
-            <div className="order-list">
-              {orders.map(o => (
-                <div key={o.id} className="order-item">
-                  <div style={{ flex: 1, fontSize: 13 }}>
-                    🏪 <strong>{o.restaurant.name}</strong>
-                    <span style={{ color:'#888', marginLeft: 6 }}>→ 📱 {o.customer.name}</span>
-                    {o.caseType && (
-                      <span className="order-badge" style={{ background: o.caseType === '1:1' ? '#2196F3' : o.caseType === '1:N' ? '#FF9800' : o.caseType === 'N:1' ? '#9C27B0' : '#4CAF50' }}>
-                        {o.caseType}
-                      </span>
-                    )}
-                  </div>
-                  <button className="delete-btn" onClick={() => deleteOrder(o.id)}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="stats">
-            <div className="stat-card"><div style={{ fontSize:'2rem', marginBottom:8 }}>📦</div><div style={{ fontSize:'1.5rem', fontWeight:'bold' }}>{orders.length}</div><div>Orders</div></div>
-            <div className="stat-card"><div style={{ fontSize:'2rem', marginBottom:8 }}>🚴</div><div style={{ fontSize:'1.5rem', fontWeight:'bold' }}>{riders.length}</div><div>Riders</div></div>
-            <div className="stat-card"><div style={{ fontSize:'2rem', marginBottom:8 }}>🛣️</div><div style={{ fontSize:'1.5rem', fontWeight:'bold' }}>{routes.length}</div><div>Routes</div></div>
-            <div className="stat-card"><div style={{ fontSize:'2rem', marginBottom:8 }}>🎯</div><div style={{ fontSize:'1.5rem', fontWeight:'bold' }}>{[...new Set(['1:1','1:N','N:1','N:N'].filter(c => DEMO_ORDERS.some(o => o.caseType === c && orders.find(x => x.id === o.id))))].length || '4'}</div><div>Cases</div></div>
-          </div>
-        </div>
-
-        {/* ── Map + Panel ── */}
-        <div className="main-content">
-          <div className="map-container"><div id="map"></div></div>
-
-          <div className="routes-panel">
-            <h2 style={{ marginBottom:12, color:'#333', textAlign:'center' }}>📊 Optimized Routes</h2>
-
-            {routes.length > 0 && (
-              <div style={{ marginBottom:15, padding:12, background:'#f5f5f5', borderRadius:10, fontSize:13 }}>
-                <b>🗺️ Rider Colors</b><br/>
-                {[...new Set(routes.map(r => r.rider))].map((rider, i) => (
-                  <span key={rider} style={{ marginRight:12, display:'inline-flex', alignItems:'center', gap:4 }}>
-                    <span style={{ display:'inline-block', width:12, height:12, borderRadius:'50%', background:['#e74c3c','#3498db','#f39c12','#9b59b6','#1abc9c','#e67e22'][i%6] }}></span>
-                    {rider}
-                  </span>
-                ))}
-                <div style={{ marginTop:8, color:'#888' }}>Solid = 1:1 &nbsp;|&nbsp; Dashed = multi-order</div>
-              </div>
-            )}
-
-            {routes.length === 0 ? (
-              <div style={{ textAlign:'center', color:'#666', padding:'30px 20px' }}>
-                <div style={{ fontSize:'3.5rem', marginBottom:16 }}>🎯</div>
-                <h3 style={{ marginBottom:8 }}>Demo data loaded!</h3>
-                <p style={{ fontSize:13, color:'#999', lineHeight:1.6 }}>
-                  <b>9 orders · 4 riders</b> across Bangalore<br/>
-                  covering all 4 optimization cases.<br/><br/>
-                  Click <b>OPTIMIZE ROUTES</b> to see them on the map.
-                </p>
-                <div className="case-legend" style={{ justifyContent:'center', marginTop:14 }}>
-                  {[['1:1','#2196F3'],['1:N','#FF9800'],['N:1','#9C27B0'],['N:N','#4CAF50']].map(([c,col]) => (
-                    <span key={c} className="case-pill" style={{ background:col }}>{c}</span>
-                  ))}
-                </div>
-              </div>
-            ) : routes.map((route, i) => (
-              <div key={i} className="route-card" style={{ background: `linear-gradient(135deg, ${['#e74c3c','#3498db','#f39c12','#9b59b6','#1abc9c','#e67e22'][i%6]}, ${['#c0392b','#2980b9','#e67e22','#8e44ad','#16a085','#ca6f1e'][i%6]})` }}>
-                <div style={{ fontSize:'1.1rem', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
-                  <span>Route #{i + 1}</span>
-                  <span style={{ background:'rgba(255,255,255,0.25)', padding:'2px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>
-                    {route.type?.replace(/_/g, ':').toUpperCase()}
-                  </span>
-                </div>
-                <div style={{ fontSize:'0.95rem', lineHeight:1.8 }}>
-                  <div>🚴 Rider: <strong>{route.rider}</strong></div>
-                  <div>🏪 Restaurants: <strong>{route.restaurants}</strong></div>
-                  <div>📦 Orders: <strong>{route.orders?.length || 0}</strong></div>
-                  <div>⏱️ Time: <strong>{route.estimatedTime} mins</strong></div>
-                  <div>📏 Distance: <strong>{route.estimatedDistance} km</strong></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+  function closestIdx(lat, lng) {
+    let best = 0, bestD = Infinity;
+    geom.forEach(([gLng, gLat], i) => {
+      const d = (gLat-lat)**2 + (gLng-lng)**2;
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return best;
   }
 
-  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  // ✅ FIX: Build per-order pickup and dropoff indices individually
+  const orderMilestones = route.orders.map((o, oi) => ({
+    oi,
+    pickupIdx:  closestIdx(o.restaurant.lat, o.restaurant.lng),
+    dropoffIdx: closestIdx(o.customer.lat,    o.customer.lng),
+    pickedUp:   false,
+    delivered:  false,
+  }));
+
+  // First pickup index across all orders (for route-level "En Route" trigger)
+  const firstPickupIdx = Math.min(...orderMilestones.map(m => m.pickupIdx));
+
+  const total  = geom.length;
+  const stepMs = totalMs / total;
+
+  // ETA countdown
+  const etaEl = document.getElementById(`eta-${ri}`);
+  let remaining = route.estimatedTime;
+  const etaInt = setInterval(() => {
+    remaining = Math.max(0, remaining - 1);
+    if (etaEl) etaEl.textContent = remaining > 0 ? `⏱ ${remaining}m` : '⏱ Done';
+    if (remaining === 0) clearInterval(etaInt);
+  }, totalMs / Math.max(route.estimatedTime, 1));
+  etaIntervals.push(etaInt);
+
+  const progEl = document.getElementById(`prog-${ri}`);
+
+  let idx = 0;
+  const tick = setInterval(() => {
+    if (idx >= total) {
+      clearInterval(tick);
+      finishRoute(ri, route, marker, mkIcon, progEl);
+      return;
+    }
+
+    const [lng, lat] = geom[idx];
+    marker.setLatLng([lat, lng]);
+    if (progEl) progEl.style.width = Math.round((idx / (total-1)) * 100) + '%';
+
+    // Route-level: switch to "En Route" when rider reaches the first restaurant
+    if (idx === firstPickupIdx) {
+      marker.setIcon(mkIcon('🚴', '#ff6b35'));
+      setRouteStatus(ri, 'picked_up');
+      showToast(`📦 ${route.rider} picking up from ${route.restaurants}`);
+    }
+
+    // ✅ FIX: Update each order individually when rider reaches its specific pickup/dropoff
+    orderMilestones.forEach(m => {
+      if (!m.pickedUp && idx >= m.pickupIdx) {
+        m.pickedUp = true;
+        setOrderStatus(ri, m.oi, 'picked_up');
+      }
+      if (!m.delivered && idx >= m.dropoffIdx) {
+        m.delivered = true;
+        setOrderStatus(ri, m.oi, 'delivered');
+      }
+    });
+
+    idx++;
+  }, stepMs);
+
+  simulationTimers.push(tick);
+}
+
+function finishRoute(ri, route, marker, mkIcon, progEl) {
+  const last = route.orders[route.orders.length - 1].customer;
+  marker.setLatLng([last.lat, last.lng]);
+  marker.setIcon(mkIcon('✅', '#06d6a0'));
+  marker.bindPopup(`<b>${route.rider}</b><br>All delivered! 🎉`).openPopup();
+  if (progEl) progEl.style.width = '100%';
+  setRouteStatus(ri, 'delivered');
+  route.orders.forEach((_, oi) => setOrderStatus(ri, oi, 'delivered'));
+  const etaEl = document.getElementById(`eta-${ri}`);
+  if (etaEl) etaEl.textContent = '⏱ Done';
+  const card = document.getElementById(`rc-${ri}`);
+  if (card) { card.style.borderColor = 'var(--green)'; card.style.background = 'rgba(6,214,160,0.05)'; }
+  showToast(`✅ ${route.rider} completed all deliveries!`);
+
+  setTimeout(() => {
+    const allDone = currentRoutes.every((_, i) => {
+      const bar = document.getElementById(`prog-${i}`);
+      return bar && parseFloat(bar.style.width) >= 99;
+    });
+    if (allDone) {
+      simulationActive = false;
+      document.getElementById('delivery-complete').classList.add('show');
+      updateStats(currentRoutes, true);
+    }
+  }, 600);
+}
+
+function setRouteStatus(ri, status) {
+  const el = document.getElementById(`rider-status-${ri}`);
+  if (!el) return;
+  el.className = `status-badge status-${status}`;
+  const labels = { pending: 'Pending', picked_up: 'En Route', delivered: 'Delivered' };
+  el.innerHTML = `<span class="status-dot"></span>${labels[status]}`;
+}
+
+function setOrderStatus(ri, oi, status) {
+  const el = document.getElementById(`os-${ri}-${oi}`);
+  if (!el) return;
+  el.className = `status-badge status-${status}`;
+  const labels = { pending: 'Pending', picked_up: 'Picked Up', delivered: 'Delivered' };
+  el.innerHTML = `<span class="status-dot"></span>${labels[status]}`;
+}
+
+// ── STATS ────────────────────────────────────────────────────────────────────
+function updateStats(routes, allDelivered) {
+  document.getElementById('stat-orders').textContent = orders.length;
+  document.getElementById('stat-routes').textContent = routes ? routes.length : 0;
+  document.getElementById('stat-riders').textContent = routes ? [...new Set(routes.map(r => r.rider))].length : 0;
+  if (allDelivered) {
+    document.getElementById('stat-orders').style.color = 'var(--green)';
+    document.getElementById('stat-routes').style.color = 'var(--green)';
+  }
+}
+
+// ── TOAST ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  clearTimeout(toastTimer);
+  let t = document.querySelector('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.style.display = 'block';
+  toastTimer = setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// Close modal on overlay click
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
 </script>
 </body>
 </html>
