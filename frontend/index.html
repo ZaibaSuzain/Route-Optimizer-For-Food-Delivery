@@ -937,7 +937,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 // ── SOCKET ───────────────────────────────────────────────────────────────────
-const socket = io('http://localhost:5500');
+const BACKEND_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:5500'
+  : 'https://route-optimizer-for-food-delivery.onrender.com';
+
+const socket = io(BACKEND_URL);
 socket.on('connect', () => {
   document.getElementById('conn-dot').classList.add('connected');
   document.getElementById('conn-text').textContent = 'Connected';
@@ -1200,7 +1204,7 @@ async function optimizeRoutes() {
   riders.forEach(r => addRiderMarker(r, true));
 
   try {
-    const res = await fetch('http://localhost:5500/api/orders', {
+    const res = await fetch(`${BACKEND_URL}/api/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orders, deliveryPersons: riders }),
